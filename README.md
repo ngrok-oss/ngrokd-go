@@ -28,15 +28,18 @@ dialer, _ := ngrokd.NewDialer(ctx, ngrokd.Config{
 defer dialer.Close()
 
 // Discover which endpoints are ngrok-bound
-dialer.DiscoverEndpoints(ctx)
+endpoints, _ := dialer.DiscoverEndpoints(ctx)
 
 // Plug into http.Client
 client := &http.Client{
     Transport: &http.Transport{DialContext: dialer.DialContext},
 }
 
-// Use normally - routing happens automatically
-resp, _ := client.Get("https://my-service.ngrok.app/api")
+// Use any discovered endpoint - routing happens automatically
+if len(endpoints) > 0 {
+    resp, _ := client.Get(endpoints[0].URL + "/health")
+    defer resp.Body.Close()
+}
 ```
 
 ## Configuration

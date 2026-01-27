@@ -1,0 +1,47 @@
+# Binaries
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+ngrokd-go-sdk
+cmd/*/main
+
+# Test binary
+*.test
+
+# Output of go coverage
+*.out
+coverage.html
+
+# Go workspace
+go.work
+go.work.sum
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Certificates (never commit these!)
+*.key
+*.crt
+*.pem
+*.csr
+
+# Local cert storage
+.ngrokd-go-sdk/
+
+# Logs
+*.log
+/tmp/
+
+# Environment files
+.env
+.env.*

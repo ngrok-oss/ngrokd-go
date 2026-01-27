@@ -45,10 +45,10 @@ client := &http.Client{
     Transport: &http.Transport{DialContext: dialer.DialContext},
 }
 
-// Use any discovered endpoint - routing happens automatically
-if len(endpoints) > 0 {
-    resp, _ := client.Get(endpoints[0].URL + "/health")
-    defer resp.Body.Close()
+// Requests to discovered endpoints route through ngrok
+for _, ep := range endpoints {
+    resp, _ := client.Get(ep.URL)
+    resp.Body.Close()
 }
 ```
 

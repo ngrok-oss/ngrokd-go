@@ -28,8 +28,7 @@ import (
     "os"
 
     ngrokd "github.com/ishanj12/ngrokd-go"
-    "your-org/orders"    // OpenAPI-generated client
-    "your-org/payments"
+    "your-org/api"  // OpenAPI-generated client
 )
 
 ctx := context.Background()
@@ -48,19 +47,14 @@ httpClient := &http.Client{
     Transport: &http.Transport{DialContext: dialer.DialContext},
 }
 
-// Inject into OpenAPI clients - URLs from config
-ordersClient, _ := orders.NewClient(
-    os.Getenv("ORDERS_API_URL"),  // https://orders.internal.company.com
-    orders.WithHTTPClient(httpClient),
-)
-
-paymentsClient, _ := payments.NewClient(
-    os.Getenv("PAYMENTS_API_URL"),
-    payments.WithHTTPClient(httpClient),
+// Inject into OpenAPI client - URL from config
+client, _ := api.NewClient(
+    os.Getenv("API_URL"),
+    api.WithHTTPClient(httpClient),
 )
 
 // Use normally - SDK routes based on endpoint cache
-order, _ := ordersClient.GetOrder(ctx, "123")
+client.DoSomething(ctx)
 ```
 
 ## Configuration

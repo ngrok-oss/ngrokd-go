@@ -21,6 +21,16 @@ go get github.com/ishanj12/ngrokd-go
 ## Usage
 
 ```go
+import (
+    "context"
+    "net"
+    "net/http"
+
+    ngrokd "github.com/ishanj12/ngrokd-go"
+)
+
+ctx := context.Background()
+
 dialer, _ := ngrokd.NewDialer(ctx, ngrokd.Config{
     APIKey:         "your-api-key",
     FallbackDialer: &net.Dialer{},  // for non-ngrok endpoints

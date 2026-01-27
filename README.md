@@ -7,8 +7,8 @@ A Go SDK for connecting to ngrok-bound Kubernetes endpoints from anywhere. Inste
 This SDK lets your Go application connect to services exposed through ngrok's Kubernetes bindings. It works by:
 
 1. **Discovering endpoints** - Polls the ngrok API to learn which hostnames are ngrok-bound
-2. **Establishing mTLS connections** - Connects to ngrok's ingress with a client certificate
-3. **Routing intelligently** - ngrok traffic goes through the tunnel, everything else uses your fallback dialer
+2. **Establishing mTLS connections** - Connects to ngrok's cloud service with a client certificate via mTLS
+3. **Routing intelligently** - ngrok traffic uses the ngrokd dialer, everything else uses your fallback dialer
 
 The SDK provisions its own mTLS certificate by generating a private key locally and having ngrok sign it. The private key never leaves your machine.
 

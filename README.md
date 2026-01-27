@@ -25,29 +25,42 @@ import (
     "context"
     "net"
     "net/http"
+    "os"
 
     ngrokd "github.com/ishanj12/ngrokd-go"
+    "your-org/orders"    // OpenAPI-generated client
+    "your-org/payments"
 )
 
 ctx := context.Background()
 
+// Create ngrok-aware dialer
 dialer, _ := ngrokd.NewDialer(ctx, ngrokd.Config{
-    APIKey:         "your-api-key",
-    FallbackDialer: &net.Dialer{},  // for non-ngrok endpoints
+    APIKey:         os.Getenv("NGROK_API_KEY"),
+    FallbackDialer: &net.Dialer{},
 })
 defer dialer.Close()
 
-// Populate endpoint cache
 dialer.DiscoverEndpoints(ctx)
 
-// Create HTTP client with ngrok-aware transport
-client := &http.Client{
+// Create HTTP client with ngrok transport
+httpClient := &http.Client{
     Transport: &http.Transport{DialContext: dialer.DialContext},
 }
 
-// Use normally - SDK routes ngrok endpoints through the tunnel
-resp, _ := client.Get("https://my-service.example.com/api")
-resp.Body.Close()
+// Inject into OpenAPI clients - URLs from config
+ordersClient, _ := orders.NewClient(
+    os.Getenv("ORDERS_API_URL"),  // https://orders.internal.company.com
+    orders.WithHTTPClient(httpClient),
+)
+
+paymentsClient, _ := payments.NewClient(
+    os.Getenv("PAYMENTS_API_URL"),
+    payments.WithHTTPClient(httpClient),
+)
+
+// Use normally - SDK routes based on endpoint cache
+order, _ := ordersClient.GetOrder(ctx, "123")
 ```
 
 ## Configuration

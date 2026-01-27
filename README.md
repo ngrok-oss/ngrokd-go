@@ -1,8 +1,6 @@
 # ngrokd-go
 
-A Go SDK that enables applications to connect to Kubernetes services exposed via ngrok bindings. It replaces the ngrokd daemon with an embeddable library, making it ideal for containerized environments like ECS Fargate where running a sidecar isn't practical.
-
-The SDK handles mTLS certificate provisioning, endpoint discovery, and connection routing—your application just uses a standard `http.Client`.
+A Go SDK for connecting to ngrok-bound Kubernetes endpoints from anywhere. Instead of running a daemon, embed this library directly in your application.
 
 ## What It Does
 

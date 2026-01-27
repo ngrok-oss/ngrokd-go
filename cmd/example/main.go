@@ -25,7 +25,7 @@ func main() {
 	fmt.Println("Creating ngrokd dialer...")
 
 	// Create dialer with fallback for non-ngrok endpoints
-	// Uses FileStore by default (~/.ngrokd-go-sdk/certs) to reuse operator across runs
+	// Uses FileStore by default (~/.ngrokd-go/certs) to reuse operator across runs
 	dialer, err := ngrokd.NewDialer(ctx, ngrokd.Config{
 		APIKey:         apiKey,
 		FallbackDialer: &net.Dialer{},

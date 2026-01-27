@@ -1,4 +1,4 @@
-# ngrokd-gosdk
+# ngrokd-go
 
 A Go SDK for connecting to ngrok-bound Kubernetes endpoints from anywhere. Instead of running a daemon, embed this library directly in your application.
 
@@ -61,7 +61,7 @@ ngrokd.Config{
 
 Certificates are cached locally to avoid re-provisioning on restart:
 
-- `FileStore` (default) - Saves to `~/.ngrokd-gosdk/certs`
+- `FileStore` (default) - Saves to `~/.ngrokd-go/certs`
 - `MemoryStore` - For ephemeral environments like Fargate or Lambda
 
 ## License

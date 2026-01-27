@@ -16,7 +16,7 @@ import (
 
 func defaultCertDir() string {
 	home, _ := os.UserHomeDir()
-	return filepath.Join(home, ".ngrokd-go-sdk", "certs")
+	return filepath.Join(home, ".ngrokd-go", "certs")
 }
 
 type certProvisioner struct {

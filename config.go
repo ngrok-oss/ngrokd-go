@@ -58,9 +58,9 @@ type Config struct {
 	// Example: ["endpoint.metadata.name == 'my-service'"]
 	EndpointSelectors []string
 
-	// RefreshInterval enables background endpoint discovery.
-	// If > 0, a goroutine periodically calls DiscoverEndpoints.
-	// Default: 0 (disabled)
+	// RefreshInterval is how often to poll the ngrok API for endpoints.
+	// A background goroutine periodically calls DiscoverEndpoints.
+	// Default: 30 seconds
 	RefreshInterval time.Duration
 
 	// RetryConfig configures retry behavior for transient failures
@@ -103,6 +103,9 @@ func (c *Config) setDefaults() {
 	}
 	if c.DialTimeout == 0 {
 		c.DialTimeout = 30 * time.Second
+	}
+	if c.RefreshInterval == 0 {
+		c.RefreshInterval = 30 * time.Second
 	}
 	if len(c.EndpointSelectors) == 0 {
 		c.EndpointSelectors = []string{"true"}

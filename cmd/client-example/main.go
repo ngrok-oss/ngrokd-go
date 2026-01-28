@@ -101,13 +101,12 @@ func main() {
 
 	fmt.Println("Creating ngrokd dialer...")
 
-	// Create ngrokd dialer with production features:
-	// - RefreshInterval: Background endpoint refresh every 5 minutes
+	// Create ngrokd dialer
+	// - RefreshInterval defaults to 30 seconds (polls ngrok API for endpoints)
 	// - RetryConfig: Retry transient failures with exponential backoff
 	dialer, err := ngrokd.NewDialer(ctx, ngrokd.Config{
-		APIKey:          apiKey,
-		FallbackDialer:  &net.Dialer{}, // Use standard dialer for non-ngrok endpoints
-		RefreshInterval: 5 * time.Minute,
+		APIKey:         apiKey,
+		FallbackDialer: &net.Dialer{}, // Use standard dialer for non-ngrok endpoints
 		RetryConfig: ngrokd.RetryConfig{
 			MaxRetries:     3,
 			InitialBackoff: 100 * time.Millisecond,

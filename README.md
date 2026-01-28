@@ -81,7 +81,7 @@ func main() {
 ngrokd.Config{
     APIKey:          "your-api-key",
     FallbackDialer:  &net.Dialer{},       // handles non-ngrok traffic
-    RefreshInterval: 5 * time.Minute,     // background endpoint refresh
+    RefreshInterval: 30 * time.Second,    // background endpoint refresh (default)
     RetryConfig: ngrokd.RetryConfig{
         MaxRetries:     3,
         InitialBackoff: 100 * time.Millisecond,

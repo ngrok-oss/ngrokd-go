@@ -28,7 +28,7 @@ func run(ctx context.Context) error {
 	}
 	defer dialer.Close()
 
-	// Discover private endpoints (populates dialer cache)
+	// Discover private endpoints 
 	if _, err := dialer.DiscoverEndpoints(ctx); err != nil {
 		return err
 	}

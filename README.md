@@ -27,6 +27,13 @@ This example shows complete end-to-end, private connectivity:
 2. **Private Cloud Endpoint** forwards traffic to the internal agent endpoint using the `forward-internal` traffic policy action
 3. **Client** discovers the private cloud endpoint and dials into it
 
+First, clone the repository:
+
+```sh
+git clone https://github.com/ishanj12/ngrokd-go.git
+cd ngrokd-go
+```
+
 ### Step 1: Start the Server
 
 The server uses [ngrok-go](https://github.com/ngrok/ngrok-go) to create an internal agent endpoint that forwards to a hello world app.

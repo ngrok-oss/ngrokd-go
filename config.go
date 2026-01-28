@@ -63,11 +63,6 @@ type Config struct {
 	// Default: 0 (disabled)
 	RefreshInterval time.Duration
 
-	// RefreshOnMiss triggers endpoint re-discovery when dialing unknown endpoints.
-	// If true and endpoint not in cache, DiscoverEndpoints is called before failing.
-	// Default: false
-	RefreshOnMiss bool
-
 	// RetryConfig configures retry behavior for transient failures
 	RetryConfig RetryConfig
 }

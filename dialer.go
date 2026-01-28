@@ -140,28 +140,13 @@ func (d *Dialer) DialContext(ctx context.Context, network, address string) (net.
 
 	// Check if this is a known ngrok endpoint
 	if !d.isKnownEndpoint(hostname) {
-		// Try refresh on miss if enabled
-		if d.config.RefreshOnMiss {
+		if d.fallbackDialer != nil {
 			if d.logger.Enabled() {
-				d.logger.V(1).Info("Endpoint not in cache, refreshing", "hostname", hostname)
+				d.logger.V(1).Info("Using fallback dialer", "hostname", hostname)
 			}
-			if _, err := d.DiscoverEndpoints(ctx); err != nil {
-				if d.logger.Enabled() {
-					d.logger.Error(err, "Refresh on miss failed")
-				}
-			}
+			return d.fallbackDialer.DialContext(ctx, network, address)
 		}
-
-		// Check again after refresh
-		if !d.isKnownEndpoint(hostname) {
-			if d.fallbackDialer != nil {
-				if d.logger.Enabled() {
-					d.logger.V(1).Info("Using fallback dialer", "hostname", hostname)
-				}
-				return d.fallbackDialer.DialContext(ctx, network, address)
-			}
-			return nil, &EndpointNotFoundError{Hostname: hostname}
-		}
+		return nil, &EndpointNotFoundError{Hostname: hostname}
 	}
 
 	// Dial with retry if configured

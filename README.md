@@ -82,7 +82,6 @@ ngrokd.Config{
     APIKey:          "your-api-key",
     FallbackDialer:  &net.Dialer{},       // handles non-ngrok traffic
     RefreshInterval: 5 * time.Minute,     // background endpoint refresh
-    RefreshOnMiss:   true,                // re-discover on unknown hostname
     RetryConfig: ngrokd.RetryConfig{
         MaxRetries:     3,
         InitialBackoff: 100 * time.Millisecond,

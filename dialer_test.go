@@ -20,6 +20,8 @@ func TestParseAddress(t *testing.T) {
 		{"http://app.example:9000", "app.example", 9000, false},
 		{"tcp://app.example:443", "app.example", 443, false},
 		{"tcp://app.example", "", 0, true}, // tcp requires port
+		{"tls://app.example:443", "app.example", 443, false},
+		{"tls://app.example", "", 0, true}, // tls requires port
 	}
 
 	for _, tt := range tests {

@@ -8,23 +8,23 @@ import (
 )
 
 // Endpoint represents a kubernetes-bound endpoint in ngrok.
-// URL format: [http|tcp]://name.namespace[:port]
-// Only http and tcp schemes are supported (https/tls are invalid).
+// URL format: [http|tcp|tls]://name.namespace[:port]
 // Hostnames must be exactly two parts separated by a dot (e.g., app.example).
 type Endpoint struct {
 	ID       string
 	Hostname string
-	Proto    string // "http" or "tcp"
-	Port     int    // required for tcp, optional for http (defaults to 80)
+	Proto    string // "http", "tcp", or "tls"
+	Port     int    // required for tcp/tls, optional for http (defaults to 80)
 	URL      string
 }
 
 // parseAddress parses an address string into hostname and port.
-// Kubernetes-bound endpoint URL format: [http|tcp]://name.namespace[:port]
+// Kubernetes-bound endpoint URL format: [http|tcp|tls]://name.namespace[:port]
 // Supports formats:
 //   - http://app.example
 //   - http://app.example:8080
 //   - tcp://app.example:443
+//   - tls://app.example:443
 func parseAddress(address string) (hostname string, port int, err error) {
 	// Check if it's a URL
 	if strings.Contains(address, "://") {
@@ -41,12 +41,12 @@ func parseAddress(address string) (hostname string, port int, err error) {
 				return "", 0, fmt.Errorf("invalid port: %w", err)
 			}
 		} else {
-			// Default ports by scheme (k8s bindings only support http/tcp)
+			// Default ports by scheme
 			switch u.Scheme {
 			case "http":
 				port = 80
-			case "tcp":
-				return "", 0, fmt.Errorf("tcp scheme requires explicit port")
+			case "tcp", "tls":
+				return "", 0, fmt.Errorf("%s scheme requires explicit port", u.Scheme)
 			default:
 				port = 80
 			}

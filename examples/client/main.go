@@ -22,7 +22,7 @@ func run(ctx context.Context) error {
 	ctx, cancel := context.WithTimeout(ctx, 60*time.Second)
 	defer cancel()
 
-	// Create ngrokd dialer (uses NGROK_API_KEY env var)
+	// Create ngrokd dialer 
 	dialer, err := ngrokd.NewDialer(ctx, ngrokd.Config{
 		DefaultDialer: &net.Dialer{},
 	})
@@ -31,7 +31,7 @@ func run(ctx context.Context) error {
 	}
 	defer dialer.Close()
 
-	// Discover kubernetes-bound endpoints (populates dialer cache)
+	// Discover private endpoints (populates dialer cache)
 	if _, err := dialer.DiscoverEndpoints(ctx); err != nil {
 		return err
 	}
@@ -42,7 +42,7 @@ func run(ctx context.Context) error {
 		Timeout:   30 * time.Second,
 	}
 
-	// Dial the server's hardcoded endpoint
+	// Dial the private endpoint
 	log.Println("Connecting to http://hello-server.example...")
 	resp, err := httpClient.Get("http://hello-server.example")
 	if err != nil {

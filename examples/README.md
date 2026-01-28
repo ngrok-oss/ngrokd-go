@@ -44,6 +44,9 @@ Get credentials from https://dashboard.ngrok.com
 ```bash
 cd examples/server
 NGROK_AUTHTOKEN=your-authtoken go run main.go
+
+# Or with a custom endpoint name:
+NGROK_AUTHTOKEN=your-authtoken ENDPOINT_NAME=my-service go run main.go
 ```
 
 Output:
@@ -51,20 +54,13 @@ Output:
 ===========================================
 Internal Agent Endpoint Started
 ===========================================
-Agent Endpoint URL: https://abc123.ngrok.app
+Internal Endpoint URL: https://hello-server.internal
 ...
 ```
 
-Note the agent endpoint URL.
+The `.internal` TLD means this endpoint is only accessible via the kubernetes binding ingress.
 
-### Step 2: Configure a Kubernetes-Bound Cloud Endpoint
-
-Create a cloud endpoint with kubernetes binding that routes to the agent endpoint.
-This can be done via the ngrok dashboard or API.
-
-The kubernetes-bound endpoint is what the client will discover and dial.
-
-### Step 3: Run the Client
+### Step 2: Run the Client
 
 ```bash
 cd examples/client

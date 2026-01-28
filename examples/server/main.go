@@ -3,10 +3,10 @@
 //
 // Usage:
 //   NGROK_AUTHTOKEN=your-authtoken go run main.go
+//   NGROK_AUTHTOKEN=your-authtoken ENDPOINT_NAME=my-service go run main.go
 //
-// This creates an agent endpoint. To connect via the ngrokd-go client,
-// you must separately configure a kubernetes-bound cloud endpoint that
-// routes to this agent endpoint (via ngrok dashboard or API).
+// This creates an internal endpoint (*.internal) that is only accessible
+// via the kubernetes binding ingress using the ngrokd-go client.
 package main
 
 import (
@@ -34,10 +34,19 @@ func run() error {
 	// Start local hello world server on port 8080
 	go startHelloServer()
 
-	// Create ngrok agent endpoint
-	// This forwards traffic from ngrok to localhost:8080
+	// Endpoint name defaults to "hello-server" but can be overridden
+	endpointName := os.Getenv("ENDPOINT_NAME")
+	if endpointName == "" {
+		endpointName = "hello-server"
+	}
+
+	// Internal endpoints use the .internal TLD
+	internalURL := fmt.Sprintf("https://%s.internal", endpointName)
+
+	// Create internal agent endpoint
 	fwd, err := ngrok.Forward(ctx,
 		ngrok.WithUpstream("http://localhost:8080"),
+		ngrok.WithURL(internalURL),
 		ngrok.WithDescription("ngrokd-go example server"),
 	)
 	if err != nil {
@@ -47,12 +56,13 @@ func run() error {
 	fmt.Println("===========================================")
 	fmt.Println("Internal Agent Endpoint Started")
 	fmt.Println("===========================================")
-	fmt.Printf("Agent Endpoint URL: %s\n", fwd.URL())
+	fmt.Printf("Internal Endpoint URL: %s\n", fwd.URL())
 	fmt.Println()
-	fmt.Println("To connect via ngrokd-go client:")
-	fmt.Println("1. Create a kubernetes-bound cloud endpoint in ngrok")
-	fmt.Println("   that routes traffic to this agent endpoint")
-	fmt.Println("2. Run the client example to discover and dial it")
+	fmt.Println("This endpoint is only accessible via the")
+	fmt.Println("kubernetes binding ingress (ngrokd-go client).")
+	fmt.Println()
+	fmt.Println("Run the client example to connect:")
+	fmt.Println("  cd examples/client && NGROK_API_KEY=xxx go run main.go")
 	fmt.Println()
 	fmt.Println("Press Ctrl+C to stop.")
 	fmt.Println("===========================================")

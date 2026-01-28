@@ -16,7 +16,7 @@ func main() {
 }
 
 func run(ctx context.Context) error {
-	// Create kubernetes-bound agent endpoint
+	// Create private agent endpoint
 	ln, err := ngrok.Listen(ctx,
 		ngrok.WithURL("http://hello-server.example"),
 		ngrok.WithBindings("kubernetes"),

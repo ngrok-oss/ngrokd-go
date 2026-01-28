@@ -2,8 +2,8 @@
 
 This example shows complete end-to-end, private connectivity:
 
-1. **Server** creates a kubernetes-bound agent endpoint via the [ngrok-go SDK](https://github.com/ngrok/ngrok-go), serving a hello world web app
-2. **Client** discovers the kubernetes-bound endpoint and dials into it via the ngrokd-go SDK
+1. **Server** creates a private agent endpoint via the [ngrok-go SDK](https://github.com/ngrok/ngrok-go), serving a hello world web app
+2. **Client** discovers the private endpoint and dials into it via the ngrokd-go SDK
 
 ## Prerequisites
 

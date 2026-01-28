@@ -5,22 +5,17 @@ import (
 	"fmt"
 	"log"
 	"net/http"
-	"os/signal"
-	"syscall"
 
 	"golang.ngrok.com/ngrok/v2"
 )
 
 func main() {
-	if err := run(); err != nil {
+	if err := run(context.Background()); err != nil {
 		log.Fatal(err)
 	}
 }
 
-func run() error {
-	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
-	defer cancel()
-
+func run(ctx context.Context) error {
 	// Create kubernetes-bound agent endpoint
 	ln, err := ngrok.Listen(ctx,
 		ngrok.WithURL("https://hello-server.example"),

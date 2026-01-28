@@ -153,7 +153,7 @@ func (c *apiClient) getValidKubernetesEndpoints(ctx context.Context) (map[string
 		return nil, err
 	}
 
-	// Build map of valid kubernetes-bound endpoint IDs
+	// Build map of valid private endpoint IDs
 	valid := make(map[string]bool)
 	for _, ep := range result.Endpoints {
 		for _, binding := range ep.Bindings {

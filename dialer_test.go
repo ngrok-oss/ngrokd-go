@@ -7,7 +7,7 @@ import (
 )
 
 func TestParseAddress(t *testing.T) {
-	// Test cases for kubernetes-bound endpoint URL format: [http|tcp]://name.namespace[:port]
+	// Test cases for private endpoint URL format: [http|tcp|tls]://name.namespace[:port]
 	tests := []struct {
 		input    string
 		hostname string

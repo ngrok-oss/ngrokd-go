@@ -7,7 +7,7 @@ import (
 	"strings"
 )
 
-// Endpoint represents a kubernetes-bound endpoint in ngrok.
+// Endpoint represents a private endpoint in ngrok.
 // URL format: [http|tcp|tls]://name.namespace[:port]
 // Hostnames must be exactly two parts separated by a dot (e.g., app.example).
 type Endpoint struct {
@@ -19,7 +19,7 @@ type Endpoint struct {
 }
 
 // parseAddress parses an address string into hostname and port.
-// Kubernetes-bound endpoint URL format: [http|tcp|tls]://name.namespace[:port]
+// Private endpoint URL format: [http|tcp|tls]://name.namespace[:port]
 // Supports formats:
 //   - http://app.example
 //   - http://app.example:8080

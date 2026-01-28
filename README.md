@@ -77,31 +77,29 @@ func main() {
 
 Create a cloud endpoint with `kubernetes` binding that forwards traffic to the internal endpoint using the [`forward-internal` action](https://ngrok.com/docs/traffic-policy/actions/forward-internal).
 
-First, create a traffic policy file:
+#### Via Dashboard
 
-**`traffic-policy.yml`**
-```yaml
-on_http_request:
-  - actions:
-      - type: forward-internal
-        config:
-          url: https://hello-server.internal
-```
-
-Then create the kubernetes-bound cloud endpoint:
-
-```sh
-ngrok api endpoints create \
-  --bindings kubernetes \
-  --url "https://hello.example" \
-  --traffic-policy "$(cat traffic-policy.yml)"
-```
+1. Go to [ngrok Dashboard → Endpoints](https://dashboard.ngrok.com/endpoints)
+2. Click **+ New Endpoint**
+3. Choose **Cloud Endpoint**
+4. Configure:
+   - **URL**: `https://hello.example` (or any name you prefer)
+   - **Binding**: Select `kubernetes`
+5. Add the following **Traffic Policy**:
+   ```yaml
+   on_http_request:
+     - actions:
+         - type: forward-internal
+           config:
+             url: https://hello-server.internal
+   ```
+6. Click **Create**
 
 This creates a kubernetes-bound endpoint that:
 - Is only accessible via the kubernetes binding ingress (not publicly addressable)
 - Forwards all traffic to your internal agent endpoint at `https://hello-server.internal`
 
-See [ngrok Internal Endpoints docs](https://ngrok.com/docs/universal-gateway/internal-endpoints) for more details.
+See [ngrok Cloud Endpoints docs](https://ngrok.com/docs/universal-gateway/cloud-endpoints) for more details.
 
 ### Step 3: Run the Client
 

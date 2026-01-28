@@ -43,6 +43,7 @@ func run(ctx context.Context) error {
 	}
 
 	// Dial the server's hardcoded endpoint
+	log.Println("Connecting to http://hello-server.example...")
 	resp, err := httpClient.Get("http://hello-server.example")
 	if err != nil {
 		return err

@@ -27,7 +27,6 @@ func run(ctx context.Context) error {
 	}
 
 	log.Println("Endpoint online:", ln.URL())
-	log.Println("Run client: NGROK_API_KEY=xxx go run examples/client/main.go")
 
 	// Serve hello world
 	return http.Serve(ln, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

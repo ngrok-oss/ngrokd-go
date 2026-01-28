@@ -23,7 +23,7 @@ cd ngrokd-go
 
 ### Step 1: Start the Server
 
-The server uses [ngrok-go](https://github.com/ngrok/ngrok-go) to create a kubernetes-bound agent endpoint.
+The server uses [ngrok-go](https://github.com/ngrok/ngrok-go) to create a private agent endpoint.
 
 ```sh
 NGROK_AUTHTOKEN=xxxx go run examples/server/main.go
@@ -32,12 +32,11 @@ NGROK_AUTHTOKEN=xxxx go run examples/server/main.go
 You should see:
 ```
 Endpoint online: https://hello-server.example
-Run client: NGROK_API_KEY=xxx go run examples/client/main.go
 ```
 
 ### Step 2: Run the Client
 
-The client uses ngrokd-go to discover the kubernetes-bound endpoint and dial into it.
+The client uses ngrokd-go to discover the private endpoint and dial into it.
 
 ```sh
 NGROK_API_KEY=xxxx go run examples/client/main.go
@@ -45,7 +44,6 @@ NGROK_API_KEY=xxxx go run examples/client/main.go
 
 You should see:
 ```
-Operator ID: op_xxx
 Found 1 endpoint(s)
   - https://hello-server.example
 Connecting to https://hello-server.example...

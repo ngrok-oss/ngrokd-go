@@ -75,6 +75,7 @@ func main() {
 ### Step 2: Create a Private Cloud Endpoint
 
 Create a cloud endpoint with `kubernetes` binding that forwards traffic to the internal endpoint using the [`forward-internal` action](https://ngrok.com/docs/traffic-policy/actions/forward-internal).
+**Note**: This is denoted as a kubernetes binding because this SDK was built using ngrok's Kubernetes Operator foundational logic. However, it is meant to run in **non-Kubernetes** environments. 
 
 #### Via Dashboard
 

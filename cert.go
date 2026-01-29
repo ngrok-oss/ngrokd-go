@@ -10,14 +10,7 @@ import (
 	"crypto/x509/pkix"
 	"encoding/pem"
 	"fmt"
-	"os"
-	"path/filepath"
 )
-
-func defaultCertDir() string {
-	home, _ := os.UserHomeDir()
-	return filepath.Join(home, ".ngrokd-go", "certs")
-}
 
 type certProvisioner struct {
 	store             CertStore

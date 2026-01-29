@@ -28,18 +28,16 @@ func upgradeToBinding(conn net.Conn, host string, port int) (endpointID, proto s
 
 func writeBindingRequest(conn net.Conn, host string, port int) error {
 	// Manual protobuf encoding
-	// Field 1: host (string) - wire type 2 (length-delimited)
-	// Field 2: port (int64) - wire type 0 (varint)
 	var buf []byte
 
 	if host != "" {
-		buf = append(buf, 0x0a) // field 1, wire type 2
+		buf = append(buf, 0x0a)
 		buf = appendVarint(buf, uint64(len(host)))
 		buf = append(buf, host...)
 	}
 
 	if port != 0 {
-		buf = append(buf, 0x10) // field 2, wire type 0
+		buf = append(buf, 0x10)
 		buf = appendVarint(buf, uint64(port))
 	}
 

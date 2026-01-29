@@ -27,8 +27,6 @@ type Config struct {
 
 	// CertStore is the storage backend for certificates.
 	// Default: FileStore at ~/.ngrokd-go/certs
-	// Use MemoryStore for ephemeral environments, or implement
-	// CertStore for AWS Secrets Manager, Vault, etc.
 	CertStore CertStore
 
 	// IngressEndpoint is the ngrok ingress endpoint
@@ -52,14 +50,12 @@ type Config struct {
 
 	// EndpointSelectors are CEL expressions that filter which endpoints this operator can access.
 	// Default: ["true"] (matches all endpoints)
-	// Example: ["endpoint.metadata.name == 'my-service'"]
 	EndpointSelectors []string
 
 	// PollingInterval is how often to poll the ngrok API for endpoints.
 	// A background goroutine periodically calls DiscoverEndpoints.
 	// Default: 30 seconds
 	PollingInterval time.Duration
-
 }
 
 // ContextDialer matches the net.Dialer.DialContext signature
@@ -73,7 +69,7 @@ func (c *Config) setDefaults() {
 		c.APIKey = os.Getenv("NGROK_API_KEY")
 	}
 	if c.CertStore == nil {
-		c.CertStore = NewFileStore(defaultCertDir())
+		c.CertStore = NewFileStore("")
 	}
 	if c.IngressEndpoint == "" {
 		c.IngressEndpoint = "kubernetes-binding-ingress.ngrok.io:443"

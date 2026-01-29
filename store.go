@@ -9,12 +9,6 @@ import (
 )
 
 // CertStore abstracts certificate storage for the SDK.
-// Implement this interface to store certificates in:
-// - AWS Secrets Manager
-// - HashiCorp Vault
-// - GCP Secret Manager
-// - Database
-// - etc.
 type CertStore interface {
 	// Load retrieves the stored certificate, private key, and operator ID.
 	// Returns error if not found or storage fails.
@@ -28,7 +22,6 @@ type CertStore interface {
 }
 
 // FileStore stores certificates on the local filesystem.
-// This is the default storage backend.
 type FileStore struct {
 	// Dir is the directory to store certificates.
 	// Files created: tls.key, tls.crt, operator_id
@@ -38,7 +31,8 @@ type FileStore struct {
 // NewFileStore creates a FileStore with the given directory.
 func NewFileStore(dir string) *FileStore {
 	if dir == "" {
-		dir = defaultCertDir()
+		home, _ := os.UserHomeDir()
+		dir = filepath.Join(home, ".ngrokd-go", "certs")
 	}
 	return &FileStore{Dir: dir}
 }
@@ -64,7 +58,6 @@ func (s *FileStore) Load(ctx context.Context) (key, cert []byte, operatorID stri
 		return nil, nil, "", fmt.Errorf("failed to read cert: %w", err)
 	}
 
-	// Operator ID is optional (for backwards compat)
 	opData, _ := os.ReadFile(s.operatorPath())
 	operatorID = string(opData)
 
@@ -92,8 +85,6 @@ func (s *FileStore) Save(ctx context.Context, key, cert []byte, operatorID strin
 }
 
 // MemoryStore stores certificates in memory only.
-// Certificates are lost when the process exits.
-// Useful for ephemeral environments or testing.
 type MemoryStore struct {
 	mu         sync.RWMutex
 	key        []byte
@@ -108,7 +99,6 @@ func NewMemoryStore() *MemoryStore {
 }
 
 // NewMemoryStoreWithCert creates a MemoryStore pre-loaded with a certificate.
-// Useful when you have the cert from an external source (e.g., Secrets Manager).
 func NewMemoryStoreWithCert(key, cert []byte, operatorID string) *MemoryStore {
 	return &MemoryStore{
 		key:        key,

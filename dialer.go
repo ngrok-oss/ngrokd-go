@@ -15,15 +15,15 @@ import (
 
 // Dialer provides net.Dial-like access to ngrok bound endpoints
 type Dialer struct {
-	config         Config
-	tlsConfig      *tls.Config
-	operatorID     string
-	apiClient      *apiClient
-	logger         logr.Logger
+	config        Config
+	tlsConfig     *tls.Config
+	operatorID    string
+	apiClient     *apiClient
+	logger        logr.Logger
 	defaultDialer ContextDialer
 
 	mu        sync.RWMutex
-	endpoints map[string]Endpoint // hostname -> endpoint cache
+	endpoints map[string]Endpoint
 
 	closed    atomic.Bool
 	closeOnce sync.Once
@@ -36,11 +36,11 @@ func NewDialer(ctx context.Context, cfg Config) (*Dialer, error) {
 	cfg.setDefaults()
 
 	d := &Dialer{
-		config:         cfg,
-		endpoints:      make(map[string]Endpoint),
-		logger:         cfg.Logger,
+		config:        cfg,
+		endpoints:     make(map[string]Endpoint),
+		logger:        cfg.Logger,
 		defaultDialer: cfg.DefaultDialer,
-		closeCh:        make(chan struct{}),
+		closeCh:       make(chan struct{}),
 	}
 
 	// Setup API client if we have an API key
@@ -119,14 +119,11 @@ func (d *Dialer) refreshLoop() {
 }
 
 // Dial connects to the address via ngrok bound endpoint
-// Address can be: hostname, hostname:port, or URL (https://hostname)
 func (d *Dialer) Dial(network, address string) (net.Conn, error) {
 	return d.DialContext(context.Background(), network, address)
 }
 
 // DialContext connects to the address via ngrok private endpoint with context.
-// If the endpoint is not in cache, it discovers endpoints first.
-// If still not found and DefaultDialer is set, routes through default dialer.
 func (d *Dialer) DialContext(ctx context.Context, network, address string) (net.Conn, error) {
 	if d.closed.Load() {
 		return nil, ErrClosed
@@ -177,7 +174,6 @@ func (d *Dialer) dial(ctx context.Context, hostname string, port int) (net.Conn,
 	tlsConfig.ServerName = ingressHost
 
 	// Fallback to InsecureSkipVerify if no custom CAs
-	// (ngrok uses intermediate CA not in system trust stores)
 	if d.config.RootCAs == nil {
 		tlsConfig.InsecureSkipVerify = true
 	}

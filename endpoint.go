@@ -19,12 +19,6 @@ func (e Endpoint) Hostname() string {
 }
 
 // parseAddress parses an address string into hostname and port.
-// Supports formats:
-//   - http://app.example
-//   - http://app.example:8080
-//   - tcp://app.example:443
-//   - app.example:8080
-//   - app.example
 func parseAddress(address string) (hostname string, port int, err error) {
 	if strings.Contains(address, "://") {
 		u, err := url.Parse(address)
@@ -52,7 +46,6 @@ func parseAddress(address string) (hostname string, port int, err error) {
 		return hostname, port, nil
 	}
 
-	// host:port format
 	if idx := strings.LastIndex(address, ":"); idx != -1 {
 		hostname = address[:idx]
 		portStr := address[idx+1:]

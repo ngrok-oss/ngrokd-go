@@ -21,7 +21,7 @@ func run(ctx context.Context) error {
 	ctx, cancel := context.WithTimeout(ctx, 60*time.Second)
 	defer cancel()
 
-	// Create ngrokd dialer (uses NGROK_API_KEY env var)
+	// Create ngrokd dialer 
 	dialer, err := ngrokd.NewDialer(ctx, ngrokd.Config{})
 	if err != nil {
 		return err

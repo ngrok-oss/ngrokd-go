@@ -3,6 +3,7 @@ package ngrokd
 import (
 	"context"
 	"net"
+	"net/url"
 	"testing"
 )
 
@@ -44,7 +45,7 @@ func TestParseAddress(t *testing.T) {
 func TestIsKnownEndpoint(t *testing.T) {
 	d := &Dialer{
 		endpoints: map[string]Endpoint{
-			"app.example": {Hostname: "app.example", Port: 80},
+			"app.example": {ID: "ep_123", URL: mustParseURL("http://app.example")},
 		},
 	}
 
@@ -76,7 +77,7 @@ func TestFallbackDialer(t *testing.T) {
 
 	d := &Dialer{
 		endpoints: map[string]Endpoint{
-			"known.example": {Hostname: "known.example", Port: 80},
+			"known.example": {ID: "ep_456", URL: mustParseURL("http://known.example")},
 		},
 		defaultDialer: mock,
 	}
@@ -108,4 +109,12 @@ func TestNoFallbackReturnsError(t *testing.T) {
 	if err == nil {
 		t.Error("expected error for unknown endpoint with no fallback")
 	}
+}
+
+func mustParseURL(s string) *url.URL {
+	u, err := url.Parse(s)
+	if err != nil {
+		panic(err)
+	}
+	return u
 }

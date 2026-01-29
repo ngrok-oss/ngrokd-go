@@ -9,7 +9,7 @@ ngrokd-go enables you to dial into private ngrok endpoints from anywhere. It han
 ## Installation
 
 ```sh
-go get github.com/ishanj12/ngrokd-go
+go get github.com/ngrok-oss/ngrokd-go
 ```
 
 ## Quickstart
@@ -21,7 +21,7 @@ import (
 	"context"
 	"net/http"
 
-	ngrokd "github.com/ishanj12/ngrokd-go"
+	ngrokd "github.com/ngrok-oss/ngrokd-go"
 )
 
 func main() {

@@ -27,7 +27,7 @@ import (
 func main() {
 	ctx := context.Background()
 
-	// Create ngrokd dialer (uses NGROK_API_KEY env var)
+	// Create ngrokd dialer 
 	dialer, _ := ngrokd.NewDialer(ctx, ngrokd.Config{})
 	defer dialer.Close()
 

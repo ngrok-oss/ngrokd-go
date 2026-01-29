@@ -56,12 +56,6 @@ ngrokd.Config{
 	// Background endpoint refresh interval (default: 30s)
 	PollingInterval: 30 * time.Second,
 
-	// Retry transient failures
-	RetryConfig: ngrokd.RetryConfig{
-		MaxRetries:     3,
-		InitialBackoff: 100 * time.Millisecond,
-	},
-
 	// Filter endpoints with CEL expressions (default: all)
 	EndpointSelectors: []string{"endpoint.metadata.name == 'my-service'"},
 }

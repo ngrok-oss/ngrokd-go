@@ -19,6 +19,10 @@ type CertStore interface {
 
 	// Exists checks if a certificate is already stored.
 	Exists(ctx context.Context) (bool, error)
+
+	// CanWrite checks if the store is writable.
+	// Used to validate permissions before creating operators.
+	CanWrite(ctx context.Context) error
 }
 
 // FileStore stores certificates on the local filesystem.
@@ -62,6 +66,20 @@ func (s *FileStore) Load(ctx context.Context) (key, cert []byte, operatorID stri
 	operatorID = string(opData)
 
 	return key, cert, operatorID, nil
+}
+
+func (s *FileStore) CanWrite(ctx context.Context) error {
+	if err := os.MkdirAll(s.Dir, 0700); err != nil {
+		return fmt.Errorf("cannot create directory %s: %w", s.Dir, err)
+	}
+
+	testFile := filepath.Join(s.Dir, ".write_test")
+	if err := os.WriteFile(testFile, []byte("test"), 0600); err != nil {
+		return fmt.Errorf("cannot write to directory %s: %w", s.Dir, err)
+	}
+	os.Remove(testFile)
+
+	return nil
 }
 
 func (s *FileStore) Save(ctx context.Context, key, cert []byte, operatorID string) error {
@@ -123,6 +141,10 @@ func (s *MemoryStore) Load(ctx context.Context) (key, cert []byte, operatorID st
 	}
 
 	return s.key, s.cert, s.operatorID, nil
+}
+
+func (s *MemoryStore) CanWrite(ctx context.Context) error {
+	return nil
 }
 
 func (s *MemoryStore) Save(ctx context.Context, key, cert []byte, operatorID string) error {

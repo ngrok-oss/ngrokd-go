@@ -49,6 +49,12 @@ func (p *certProvisioner) EnsureCertificate(ctx context.Context) (cert tls.Certi
 }
 
 func (p *certProvisioner) provisionCertificate(ctx context.Context) (tls.Certificate, string, error) {
+	// Validate store is writable before creating operator to prevent
+	// orphaned operators on permission errors during crash loops
+	if err := p.store.CanWrite(ctx); err != nil {
+		return tls.Certificate{}, "", fmt.Errorf("certificate store not writable: %w", err)
+	}
+
 	// Generate ECDSA P-384 private key
 	privateKey, err := ecdsa.GenerateKey(elliptic.P384(), rand.Reader)
 	if err != nil {

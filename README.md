@@ -12,7 +12,11 @@ go get github.com/ngrok-oss/ngrokd-go
 
 ### Dialer
 
-Simple dialer that uses an existing certificate. Auto-loads from `~/.ngrokd-go/certs` if no cert provided.
+No API key required. Uses an existing cert/private key to authenticate with ngrok and dial endpoints directly. Auto-loads from `~/.ngrokd-go/certs` if no cert provided.
+
+- No provisioning, no discovery, no API calls
+- Just mTLS dial to ngrok ingress
+- Ngrok rejects unknown endpoints with `ERR_NGROK_706`
 
 ```go
 // Auto-load cert from default location

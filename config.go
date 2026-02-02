@@ -5,85 +5,109 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"net"
-	"os"
-	"time"
 
 	"github.com/go-logr/logr"
 )
 
-// Config holds the configuration for the ngrokd Dialer
+const defaultIngressEndpoint = "kubernetes-binding-ingress.ngrok.io:443"
+
+// Config holds the configuration for a Dialer with API-based discovery.
 type Config struct {
-	// APIKey is the ngrok API key for provisioning certificates
-	// Required if TLSCert is not provided
+	// APIKey is the ngrok API key for provisioning certificates and discovering endpoints.
+	// Required.
 	APIKey string
 
-	// OperatorID is the Kubernetes operator ID
-	// If empty and APIKey is set, a new operator will be provisioned
+	// OperatorID is an existing operator ID to use for discovery.
+	// If empty, will be loaded from CertStore or provisioned.
 	OperatorID string
 
-	// TLSCert is the mTLS client certificate for connecting to ngrok
-	// If empty, will be auto-provisioned using APIKey
-	TLSCert tls.Certificate
+	// Cert is an existing mTLS certificate to use.
+	// If empty, will be loaded from CertStore or provisioned.
+	Cert tls.Certificate
 
 	// CertStore is the storage backend for certificates.
 	// Default: FileStore at ~/.ngrokd-go/certs
 	CertStore CertStore
 
-	// IngressEndpoint is the ngrok ingress endpoint
+	// IngressEndpoint is the ngrok ingress endpoint.
 	// Default: kubernetes-binding-ingress.ngrok.io:443
 	IngressEndpoint string
 
-	// RootCAs is the CA pool for verifying ngrok ingress TLS
-	// If nil, system roots are used (with fallback to InsecureSkipVerify)
+	// RootCAs is the CA pool for verifying ngrok ingress TLS.
+	// If nil, system roots are used (with fallback to InsecureSkipVerify).
 	RootCAs *x509.CertPool
 
 	// IngressDialer dials the ngrok ingress endpoint.
 	// If nil, uses net.Dialer with 30s timeout.
 	IngressDialer ContextDialer
 
-	// Logger for structured logging
+	// Logger for structured logging.
 	Logger logr.Logger
-
-	// DefaultDialer is used for addresses not matching known ngrok endpoints
-	// If nil, DialContext returns an error for unknown endpoints
-	DefaultDialer ContextDialer
 
 	// EndpointSelectors are CEL expressions that filter which endpoints this operator can access.
 	// Default: ["true"] (matches all endpoints)
 	EndpointSelectors []string
-
-	// PollingInterval is how often to poll the ngrok API for endpoints.
-	// A background goroutine periodically calls DiscoverEndpoints.
-	// Default: 30 seconds
-	PollingInterval time.Duration
 }
 
-// ContextDialer matches the net.Dialer.DialContext signature
+// DirectConfig holds the configuration for a Dialer without API access.
+type DirectConfig struct {
+	// Cert is the mTLS client certificate for connecting to ngrok.
+	// If empty, loads from CertStore.
+	Cert tls.Certificate
+
+	// CertStore is the storage backend to load certificates from.
+	// Only used if Cert is not provided.
+	// Default: FileStore at ~/.ngrokd-go/certs
+	CertStore CertStore
+
+	// IngressEndpoint is the ngrok ingress endpoint.
+	// Default: kubernetes-binding-ingress.ngrok.io:443
+	IngressEndpoint string
+
+	// RootCAs is the CA pool for verifying ngrok ingress TLS.
+	// If nil, system roots are used (with fallback to InsecureSkipVerify).
+	RootCAs *x509.CertPool
+
+	// IngressDialer dials the ngrok ingress endpoint.
+	// If nil, uses net.Dialer with 30s timeout.
+	IngressDialer ContextDialer
+
+	// Logger for structured logging.
+	Logger logr.Logger
+}
+
+// ContextDialer matches the net.Dialer.DialContext signature.
 type ContextDialer interface {
 	DialContext(ctx context.Context, network, address string) (net.Conn, error)
 }
 
 func (c *Config) setDefaults() {
-	// Read API key from environment if not set
-	if c.APIKey == "" {
-		c.APIKey = os.Getenv("NGROK_API_KEY")
-	}
 	if c.CertStore == nil {
 		c.CertStore = NewFileStore("")
 	}
 	if c.IngressEndpoint == "" {
-		c.IngressEndpoint = "kubernetes-binding-ingress.ngrok.io:443"
+		c.IngressEndpoint = defaultIngressEndpoint
 	}
 	if c.IngressDialer == nil {
-		c.IngressDialer = &net.Dialer{Timeout: 30 * time.Second}
-	}
-	if c.PollingInterval == 0 {
-		c.PollingInterval = 30 * time.Second
+		c.IngressDialer = defaultDialer()
 	}
 	if len(c.EndpointSelectors) == 0 {
 		c.EndpointSelectors = []string{"true"}
 	}
-	// Note: DefaultDialer is intentionally left nil by default.
-	// This causes DialContext to return EndpointNotFoundError for unknown
-	// endpoints rather than silently falling back to DNS.
+}
+
+func (c *DirectConfig) setDefaults() {
+	if c.CertStore == nil {
+		c.CertStore = NewFileStore("")
+	}
+	if c.IngressEndpoint == "" {
+		c.IngressEndpoint = defaultIngressEndpoint
+	}
+	if c.IngressDialer == nil {
+		c.IngressDialer = defaultDialer()
+	}
+}
+
+func defaultDialer() ContextDialer {
+	return &net.Dialer{Timeout: 30 * 1e9} // 30 seconds
 }

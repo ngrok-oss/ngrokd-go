@@ -1,10 +1,6 @@
 # ngrokd-go
 
-[![MIT licensed](https://img.shields.io/badge/license-MIT-blue.svg)](https://github.com/ishanj12/ngrokd-go/blob/main/LICENSE)
-
-A Go SDK for connecting to remote services via ngrok's private endpoints. Instead of running the [ngrokd daemon](https://ngrokd.ngrok.app/), embed this library directly in your Go application.
-
-ngrokd-go enables you to dial into private ngrok endpoints from anywhere. It handles mTLS certificate provisioning, endpoint discovery, and the binding protocol automatically.
+A Go SDK for connecting to remote services via ngrok's private kubernetes-bound endpoints. Embed this library directly in your Go application instead of running the ngrok daemon.
 
 ## Installation
 
@@ -12,66 +8,95 @@ ngrokd-go enables you to dial into private ngrok endpoints from anywhere. It han
 go get github.com/ngrok-oss/ngrokd-go
 ```
 
-## Quickstart
+## Two Dialers
+
+### Dialer
+
+Simple dialer that uses an existing certificate. Auto-loads from `~/.ngrokd-go/certs` if no cert provided.
 
 ```go
-package main
+// Auto-load cert from default location
+dialer, err := ngrokd.Dialer(ngrokd.DirectConfig{})
 
-import (
-	"context"
-	"net/http"
+// Or provide cert explicitly
+cert, _ := tls.LoadX509KeyPair("tls.crt", "tls.key")
+dialer, err := ngrokd.Dialer(ngrokd.DirectConfig{
+    Cert: cert,
+})
 
-	ngrokd "github.com/ngrok-oss/ngrokd-go"
-)
+// Use with http.Client
+client := &http.Client{
+    Transport: &http.Transport{DialContext: dialer.DialContext},
+}
+resp, _ := client.Get("http://my-service.namespace:8080")
+```
 
-func main() {
-	ctx := context.Background()
+### DiscoveryDialer
 
-	// Create ngrokd dialer 
-	dialer, _ := ngrokd.NewDialer(ctx, ngrokd.Config{})
-	defer dialer.Close()
+Provisions certificates via API and provides endpoint visibility.
 
-	// Create HTTP client that routes through ngrok
-	client := &http.Client{
-		Transport: &http.Transport{DialContext: dialer.DialContext},
-	}
+```go
+dialer, err := ngrokd.DiscoveryDialer(ctx, ngrokd.Config{
+    APIKey: os.Getenv("NGROK_API_KEY"),
+})
 
-	// Make requests to private endpoints
-	resp, _ := client.Get("https://my-service.example")
+// List available endpoints
+endpoints, _ := dialer.Endpoints(ctx)
+for _, ep := range endpoints {
+    fmt.Println(ep.URL)
+}
+
+// Dial like normal
+client := &http.Client{
+    Transport: &http.Transport{DialContext: dialer.DialContext},
 }
 ```
 
-See [examples/](./examples/) for a complete end-to-end demo with server and client.
+## Workflow
+
+1. **First time**: Use `DiscoveryDialer` with API key to provision certificate (saved to `~/.ngrokd-go/certs`)
+2. **After that**: Use `Dialer` without API key—auto-loads saved certificate
+
+```go
+// One-time provisioning
+d, _ := ngrokd.DiscoveryDialer(ctx, ngrokd.Config{APIKey: "..."})
+// Cert is now saved to ~/.ngrokd-go/certs
+
+// Later, no API key needed
+d, _ := ngrokd.Dialer(ngrokd.DirectConfig{})
+```
 
 ## Configuration
 
+### DirectConfig (for Dialer)
+
+```go
+ngrokd.DirectConfig{
+    Cert:      tls.Certificate{},  // Optional: explicit cert
+    CertStore: ngrokd.NewFileStore("/custom/path"),  // Optional: custom storage
+}
+```
+
+### Config (for DiscoveryDialer)
+
 ```go
 ngrokd.Config{
-	// Required: ngrok API key 
-	APIKey: "your-api-key",
-
-	// Routes non-ngrok traffic to standard dialer 
-	DefaultDialer: &net.Dialer{},
-
-	// Background endpoint refresh interval 
-	PollingInterval: 30 * time.Second,
-
-	// Filter endpoints with CEL expressions 
-	EndpointSelectors: []string{"endpoint.metadata.name == 'my-service'"},
+    APIKey:            "your-api-key",  // Required
+    EndpointSelectors: []string{"true"},  // CEL expressions to filter endpoints
 }
 ```
 
 ## Certificate Storage
 
-Certificates are cached to avoid re-provisioning on restart:
+Certificates are stored to avoid re-provisioning:
 
-- `FileStore` (default) - Saves to `~/.ngrokd-go/certs`
-- `MemoryStore` - For ephemeral environments like Fargate or Lambda
+- `FileStore` (default) — `~/.ngrokd-go/certs`
+- `MemoryStore` — ephemeral, for Lambda/Fargate
+- Custom — implement `CertStore` interface
 
-## Documentation
+## Examples
 
-- [Examples](./examples/) - Complete end-to-end demo
-- [ngrok Documentation](https://ngrok.com/docs)
+See [examples/](./examples/) for complete demos.
 
 ## License
 

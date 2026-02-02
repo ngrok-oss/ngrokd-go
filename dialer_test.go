@@ -2,13 +2,19 @@ package ngrokd
 
 import (
 	"context"
-	"net"
+	"crypto/ecdsa"
+	"crypto/elliptic"
+	"crypto/rand"
+	"crypto/tls"
+	"crypto/x509"
+	"crypto/x509/pkix"
+	"math/big"
 	"net/url"
 	"testing"
+	"time"
 )
 
 func TestParseAddress(t *testing.T) {
-	// Test cases for private endpoint URL format: [http|tcp|tls]://name.namespace[:port]
 	tests := []struct {
 		input    string
 		hostname string
@@ -20,9 +26,9 @@ func TestParseAddress(t *testing.T) {
 		{"http://app.example", "app.example", 80, false},
 		{"http://app.example:9000", "app.example", 9000, false},
 		{"tcp://app.example:443", "app.example", 443, false},
-		{"tcp://app.example", "", 0, true}, // tcp requires port
+		{"tcp://app.example", "", 0, true},
 		{"tls://app.example:443", "app.example", 443, false},
-		{"tls://app.example", "", 0, true}, // tls requires port
+		{"tls://app.example", "", 0, true},
 	}
 
 	for _, tt := range tests {
@@ -42,72 +48,35 @@ func TestParseAddress(t *testing.T) {
 	}
 }
 
-func TestIsKnownEndpoint(t *testing.T) {
-	d := &Dialer{
-		endpoints: map[string]Endpoint{
-			"app.example": {ID: "ep_123", URL: mustParseURL("http://app.example")},
-		},
-	}
-
-	if !d.isKnownEndpoint("app.example") {
-		t.Error("expected app.example to be known")
-	}
-
-	if d.isKnownEndpoint("unknown.example.com") {
-		t.Error("expected unknown.example.com to be unknown")
-	}
-}
-
-// mockDialer records calls and returns a mock connection
-type mockDialer struct {
-	called  bool
-	address string
-}
-
-func (m *mockDialer) DialContext(ctx context.Context, network, address string) (net.Conn, error) {
-	m.called = true
-	m.address = address
-	// Return a pipe for testing (one end of a connection)
-	client, _ := net.Pipe()
-	return client, nil
-}
-
-func TestFallbackDialer(t *testing.T) {
-	mock := &mockDialer{}
-
-	d := &Dialer{
-		endpoints: map[string]Endpoint{
-			"known.example": {ID: "ep_456", URL: mustParseURL("http://known.example")},
-		},
-		defaultDialer: mock,
-	}
-
-	// Unknown endpoint should use fallback
+func TestDiscoveryDialerRequiresAPIKey(t *testing.T) {
 	ctx := context.Background()
-	conn, err := d.DialContext(ctx, "tcp", "unknown.example:80")
+	_, err := DiscoveryDialer(ctx, Config{})
+	if err == nil {
+		t.Fatal("expected error when APIKey is missing")
+	}
+}
+
+func TestDialerLoadsFromStore(t *testing.T) {
+	store := NewMemoryStore() // empty store
+
+	_, err := Dialer(DirectConfig{CertStore: store})
+	if err == nil {
+		t.Fatal("expected error when store is empty")
+	}
+}
+
+func TestDialer(t *testing.T) {
+	cert := generateTestCert(t)
+
+	d, err := Dialer(DirectConfig{
+		Cert: cert,
+	})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	conn.Close()
 
-	if !mock.called {
-		t.Error("expected fallback dialer to be called")
-	}
-	if mock.address != "unknown.example:80" {
-		t.Errorf("expected address unknown.example:80, got %s", mock.address)
-	}
-}
-
-func TestNoFallbackReturnsError(t *testing.T) {
-	d := &Dialer{
-		endpoints: map[string]Endpoint{},
-		// No fallback dialer
-	}
-
-	ctx := context.Background()
-	_, err := d.DialContext(ctx, "tcp", "unknown.example:80")
-	if err == nil {
-		t.Error("expected error for unknown endpoint with no fallback")
+	if d.ingressEndpoint != defaultIngressEndpoint {
+		t.Errorf("expected default ingress endpoint, got %s", d.ingressEndpoint)
 	}
 }
 
@@ -117,4 +86,30 @@ func mustParseURL(s string) *url.URL {
 		panic(err)
 	}
 	return u
+}
+
+func generateTestCert(t *testing.T) tls.Certificate {
+	t.Helper()
+
+	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	if err != nil {
+		t.Fatalf("failed to generate key: %v", err)
+	}
+
+	template := x509.Certificate{
+		SerialNumber: big.NewInt(1),
+		Subject:      pkix.Name{CommonName: "test"},
+		NotBefore:    time.Now(),
+		NotAfter:     time.Now().Add(time.Hour),
+	}
+
+	certDER, err := x509.CreateCertificate(rand.Reader, &template, &template, &key.PublicKey, key)
+	if err != nil {
+		t.Fatalf("failed to create cert: %v", err)
+	}
+
+	return tls.Certificate{
+		Certificate: [][]byte{certDER},
+		PrivateKey:  key,
+	}
 }

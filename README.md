@@ -1,6 +1,6 @@
 # ngrokd-go
 
-A Go SDK for connecting to remote services via ngrok's private kubernetes-bound endpoints. Embed this library directly in your Go application instead of running the ngrok daemon.
+A Go SDK for connecting to remote services via ngrok's private endpoints. Embed this library directly in your Go application instead of running the ngrok daemon.
 
 ## Installation
 

@@ -6,72 +6,208 @@ import (
 	"crypto/x509"
 	"fmt"
 	"net"
-	"sync"
-	"sync/atomic"
-	"time"
 
 	"github.com/go-logr/logr"
 )
 
-// Dialer provides net.Dial-like access to ngrok bound endpoints
-type Dialer struct {
-	config        Config
-	tlsConfig     *tls.Config
-	operatorID    string
-	apiClient     *apiClient
-	logger        logr.Logger
-	defaultDialer ContextDialer
-
-	mu        sync.RWMutex
-	endpoints map[string]Endpoint
-
-	closed    atomic.Bool
-	closeOnce sync.Once
-	closeCh   chan struct{}
-	wg        sync.WaitGroup
+// dialer provides simple net.Dial-like access to ngrok endpoints.
+type dialer struct {
+	tlsConfig       *tls.Config
+	ingressEndpoint string
+	ingressDialer   ContextDialer
+	rootCAs         *x509.CertPool
+	logger          logr.Logger
 }
 
-// NewDialer creates a new Dialer with the given configuration
-func NewDialer(ctx context.Context, cfg Config) (*Dialer, error) {
+// Dialer creates a dialer for direct connections to ngrok endpoints.
+// If no Cert is provided, loads from CertStore (default: ~/.ngrokd-go/certs).
+func Dialer(cfg DirectConfig) (*dialer, error) {
 	cfg.setDefaults()
 
-	d := &Dialer{
-		config:        cfg,
-		endpoints:     make(map[string]Endpoint),
-		logger:        cfg.Logger,
-		defaultDialer: cfg.DefaultDialer,
-		closeCh:       make(chan struct{}),
+	var cert tls.Certificate
+	if cfg.Cert.Certificate != nil {
+		cert = cfg.Cert
+	} else {
+		// Load from store
+		ctx := context.Background()
+		exists, err := cfg.CertStore.Exists(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("failed to check cert store: %w", err)
+		}
+		if !exists {
+			return nil, fmt.Errorf("no certificate found; provision with DiscoveryDialer first or provide Cert")
+		}
+
+		keyPEM, certPEM, _, err := cfg.CertStore.Load(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("failed to load certificate: %w", err)
+		}
+
+		cert, err = tls.X509KeyPair(certPEM, keyPEM)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse certificate: %w", err)
+		}
 	}
 
-	// Setup API client if we have an API key
-	if cfg.APIKey != "" {
-		d.apiClient = newAPIClient(cfg.APIKey)
+	return &dialer{
+		tlsConfig:       buildTLSConfig(cert, cfg.RootCAs),
+		ingressEndpoint: cfg.IngressEndpoint,
+		ingressDialer:   cfg.IngressDialer,
+		rootCAs:         cfg.RootCAs,
+		logger:          cfg.Logger,
+	}, nil
+}
+
+// Dial connects to the address via ngrok.
+func (d *dialer) Dial(network, address string) (net.Conn, error) {
+	return d.DialContext(context.Background(), network, address)
+}
+
+// DialContext connects to the address via ngrok with context.
+func (d *dialer) DialContext(ctx context.Context, network, address string) (net.Conn, error) {
+	hostname, port, err := parseAddress(address)
+	if err != nil {
+		return nil, fmt.Errorf("invalid address %q: %w", address, err)
 	}
 
-	// Get or provision certificate
+	if d.logger.Enabled() {
+		d.logger.V(1).Info("Dialing via ngrok", "hostname", hostname, "port", port)
+	}
+
+	return dialNgrok(ctx, d.ingressDialer, d.ingressEndpoint, d.tlsConfig, d.rootCAs, hostname, port, d.logger)
+}
+
+// discoveryDialer provides net.Dial-like access with API-based cert provisioning and visibility.
+type discoveryDialer struct {
+	tlsConfig       *tls.Config
+	ingressEndpoint string
+	ingressDialer   ContextDialer
+	rootCAs         *x509.CertPool
+	logger          logr.Logger
+	operatorID      string
+	apiClient       *apiClient
+}
+
+// DiscoveryDialer creates a dialer with API-based cert provisioning and endpoint visibility.
+// Requires an API key for provisioning certificates. Use Endpoints() or Diagnose() to see available endpoints.
+func DiscoveryDialer(ctx context.Context, cfg Config) (*discoveryDialer, error) {
+	if cfg.APIKey == "" {
+		return nil, fmt.Errorf("APIKey is required; use Dialer for direct connections")
+	}
+
+	cfg.setDefaults()
+
+	apiClient := newAPIClient(cfg.APIKey)
+
+	// Use provided cert/operator, or provision/load from store
 	var tlsCert tls.Certificate
-	var err error
+	var operatorID string
 
-	if cfg.TLSCert.Certificate != nil {
-		// Use provided certificate
-		tlsCert = cfg.TLSCert
-		d.operatorID = cfg.OperatorID
-	} else if cfg.APIKey != "" {
-		// Auto-provision certificate using CertStore
-		provisioner := newCertProvisioner(cfg.CertStore, d.apiClient, cfg.EndpointSelectors)
-		tlsCert, d.operatorID, err = provisioner.EnsureCertificate(ctx)
+	if cfg.Cert.Certificate != nil {
+		tlsCert = cfg.Cert
+		operatorID = cfg.OperatorID
+	} else {
+		provisioner := newCertProvisioner(cfg.CertStore, apiClient, cfg.EndpointSelectors)
+		var err error
+		tlsCert, operatorID, err = provisioner.EnsureCertificate(ctx)
 		if err != nil {
 			return nil, fmt.Errorf("failed to provision certificate: %w", err)
 		}
-		if d.logger.Enabled() {
-			d.logger.Info("Certificate provisioned", "operatorID", d.operatorID)
-		}
-	} else {
-		return nil, fmt.Errorf("either TLSCert or APIKey must be provided")
 	}
 
-	// Setup TLS config
-	rootCAs := cfg.RootCAs
+	// Allow overriding operator ID even with provisioned cert
+	if cfg.OperatorID != "" {
+		operatorID = cfg.OperatorID
+	}
+
+	d := &discoveryDialer{
+		tlsConfig:       buildTLSConfig(tlsCert, cfg.RootCAs),
+		ingressEndpoint: cfg.IngressEndpoint,
+		ingressDialer:   cfg.IngressDialer,
+		rootCAs:         cfg.RootCAs,
+		logger:          cfg.Logger,
+		operatorID:      operatorID,
+		apiClient:       apiClient,
+	}
+
+	if d.logger.Enabled() {
+		d.logger.Info("Certificate ready", "operatorID", d.operatorID)
+	}
+
+	return d, nil
+}
+
+// Dial connects to the address via ngrok.
+func (d *discoveryDialer) Dial(network, address string) (net.Conn, error) {
+	return d.DialContext(context.Background(), network, address)
+}
+
+// DialContext connects to the address via ngrok with context.
+func (d *discoveryDialer) DialContext(ctx context.Context, network, address string) (net.Conn, error) {
+	hostname, port, err := parseAddress(address)
+	if err != nil {
+		return nil, fmt.Errorf("invalid address %q: %w", address, err)
+	}
+
+	if d.logger.Enabled() {
+		d.logger.V(1).Info("Dialing via ngrok", "hostname", hostname, "port", port)
+	}
+
+	return dialNgrok(ctx, d.ingressDialer, d.ingressEndpoint, d.tlsConfig, d.rootCAs, hostname, port, d.logger)
+}
+
+// OperatorID returns the ngrok operator ID.
+func (d *discoveryDialer) OperatorID() string {
+	return d.operatorID
+}
+
+// Endpoints fetches bound endpoints from ngrok API.
+func (d *discoveryDialer) Endpoints(ctx context.Context) ([]Endpoint, error) {
+	return discoverEndpoints(ctx, d.apiClient, d.operatorID)
+}
+
+
+
+// dialNgrok is the shared dial implementation.
+func dialNgrok(ctx context.Context, ingressDialer ContextDialer, ingressEndpoint string, tlsConfig *tls.Config, rootCAs *x509.CertPool, hostname string, port int, logger logr.Logger) (net.Conn, error) {
+	ingressHost, _, _ := net.SplitHostPort(ingressEndpoint)
+	if ingressHost == "" {
+		ingressHost = ingressEndpoint
+	}
+
+	tlsCfg := tlsConfig.Clone()
+	tlsCfg.ServerName = ingressHost
+
+	if rootCAs == nil {
+		tlsCfg.InsecureSkipVerify = true
+	}
+
+	tcpConn, err := ingressDialer.DialContext(ctx, "tcp", ingressEndpoint)
+	if err != nil {
+		return nil, fmt.Errorf("dial %s: %w", ingressEndpoint, err)
+	}
+
+	tlsConn := tls.Client(tcpConn, tlsCfg)
+	if err := tlsConn.HandshakeContext(ctx); err != nil {
+		tcpConn.Close()
+		return nil, fmt.Errorf("TLS handshake %s: %w", ingressEndpoint, err)
+	}
+
+	endpointID, proto, err := upgradeToBinding(tlsConn, hostname, port)
+	if err != nil {
+		tlsConn.Close()
+		return nil, fmt.Errorf("upgrade %s:%d: %w", hostname, port, err)
+	}
+
+	if logger.Enabled() {
+		logger.V(1).Info("Connection upgraded", "endpointID", endpointID, "proto", proto)
+	}
+
+	return tlsConn, nil
+}
+
+// buildTLSConfig creates a TLS config with the given certificate and CA pool.
+func buildTLSConfig(cert tls.Certificate, rootCAs *x509.CertPool) *tls.Config {
 	if rootCAs == nil {
 		rootCAs, _ = x509.SystemCertPool()
 		if rootCAs == nil {
@@ -79,235 +215,9 @@ func NewDialer(ctx context.Context, cfg Config) (*Dialer, error) {
 		}
 	}
 
-	d.tlsConfig = &tls.Config{
-		Certificates: []tls.Certificate{tlsCert},
-		RootCAs:      rootCAs,
-		// Enable session resumption for performance
+	return &tls.Config{
+		Certificates:       []tls.Certificate{cert},
+		RootCAs:            rootCAs,
 		ClientSessionCache: tls.NewLRUClientSessionCache(128),
 	}
-
-	// Start background refresh if configured
-	if cfg.PollingInterval > 0 {
-		d.wg.Add(1)
-		go d.refreshLoop()
-	}
-
-	return d, nil
-}
-
-// refreshLoop runs background endpoint discovery at PollingInterval
-func (d *Dialer) refreshLoop() {
-	defer d.wg.Done()
-
-	ticker := time.NewTicker(d.config.PollingInterval)
-	defer ticker.Stop()
-
-	for {
-		select {
-		case <-d.closeCh:
-			return
-		case <-ticker.C:
-			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-			if _, err := d.DiscoverEndpoints(ctx); err != nil {
-				if d.logger.Enabled() {
-					d.logger.Error(err, "Background endpoint refresh failed")
-				}
-			}
-			cancel()
-		}
-	}
-}
-
-// Dial connects to the address via ngrok bound endpoint
-func (d *Dialer) Dial(network, address string) (net.Conn, error) {
-	return d.DialContext(context.Background(), network, address)
-}
-
-// DialContext connects to the address via ngrok private endpoint with context.
-func (d *Dialer) DialContext(ctx context.Context, network, address string) (net.Conn, error) {
-	if d.closed.Load() {
-		return nil, ErrClosed
-	}
-
-	hostname, port, err := parseAddress(address)
-	if err != nil {
-		return nil, fmt.Errorf("invalid address %q: %w", address, err)
-	}
-
-	// Check if this is a known ngrok endpoint, discover if not
-	if !d.isKnownEndpoint(hostname) {
-		// Try discovering endpoints
-		if _, err := d.DiscoverEndpoints(ctx); err != nil {
-			if d.logger.Enabled() {
-				d.logger.Error(err, "Failed to discover endpoints")
-			}
-		}
-	}
-
-	// Check again after discovery
-	if !d.isKnownEndpoint(hostname) {
-		if d.defaultDialer != nil {
-			if d.logger.Enabled() {
-				d.logger.V(1).Info("Using default dialer", "hostname", hostname)
-			}
-			return d.defaultDialer.DialContext(ctx, network, address)
-		}
-		return nil, &EndpointNotFoundError{
-			Hostname:       hostname,
-			OperatorID:     d.operatorID,
-			KnownEndpoints: d.knownEndpointNames(),
-		}
-	}
-
-	return d.dial(ctx, hostname, port)
-}
-
-// dial connects to the ngrok ingress and upgrades to the binding protocol
-func (d *Dialer) dial(ctx context.Context, hostname string, port int) (net.Conn, error) {
-	if d.logger.Enabled() {
-		d.logger.V(1).Info("Dialing via ngrok", "hostname", hostname, "port", port)
-	}
-
-	// Dial mTLS to ngrok ingress
-	ingressHost, _, _ := net.SplitHostPort(d.config.IngressEndpoint)
-	if ingressHost == "" {
-		ingressHost = d.config.IngressEndpoint
-	}
-
-	tlsConfig := d.tlsConfig.Clone()
-	tlsConfig.ServerName = ingressHost
-
-	// Fallback to InsecureSkipVerify if no custom CAs
-	if d.config.RootCAs == nil {
-		tlsConfig.InsecureSkipVerify = true
-	}
-
-	// Dial TCP, then wrap with TLS
-	address := d.config.IngressEndpoint
-	tcpConn, err := d.config.IngressDialer.DialContext(ctx, "tcp", address)
-	if err != nil {
-		return nil, fmt.Errorf("dial %s: %w", address, err)
-	}
-
-	tlsConn := tls.Client(tcpConn, tlsConfig)
-	if err := tlsConn.HandshakeContext(ctx); err != nil {
-		tcpConn.Close()
-		return nil, fmt.Errorf("TLS handshake %s: %w", address, err)
-	}
-
-	// Upgrade connection with binding protocol
-	endpointID, proto, err := upgradeToBinding(tlsConn, hostname, port)
-	if err != nil {
-		tlsConn.Close()
-		return nil, fmt.Errorf("upgrade %s:%d: %w", hostname, port, err)
-	}
-
-	if d.logger.Enabled() {
-		d.logger.V(1).Info("Connection upgraded", "endpointID", endpointID, "proto", proto)
-	}
-
-	return tlsConn, nil
-}
-
-// DiscoverEndpoints fetches and caches bound endpoints from ngrok API
-func (d *Dialer) DiscoverEndpoints(ctx context.Context) ([]Endpoint, error) {
-	if d.closed.Load() {
-		return nil, ErrClosed
-	}
-
-	endpoints, err := d.discoverEndpoints(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	// Update cache
-	d.mu.Lock()
-	d.endpoints = make(map[string]Endpoint, len(endpoints))
-	for _, ep := range endpoints {
-		d.endpoints[ep.Hostname()] = ep
-	}
-	d.mu.Unlock()
-
-	return endpoints, nil
-}
-
-// Endpoints returns the cached endpoints
-func (d *Dialer) Endpoints() map[string]Endpoint {
-	d.mu.RLock()
-	defer d.mu.RUnlock()
-
-	result := make(map[string]Endpoint, len(d.endpoints))
-	for k, v := range d.endpoints {
-		result[k] = v
-	}
-	return result
-}
-
-// OperatorID returns the ngrok operator ID
-func (d *Dialer) OperatorID() string {
-	return d.operatorID
-}
-
-// Diagnose returns diagnostic information about the dialer state
-func (d *Dialer) Diagnose(ctx context.Context) (*DiagnosticInfo, error) {
-	info := &DiagnosticInfo{
-		OperatorID:     d.operatorID,
-		KnownEndpoints: d.knownEndpointNames(),
-	}
-
-	if d.apiClient == nil {
-		return info, nil
-	}
-
-	// Fetch bound endpoints for this operator
-	if d.operatorID != "" {
-		endpoints, err := d.apiClient.ListBoundEndpoints(ctx, d.operatorID)
-		if err != nil {
-			info.BoundEndpointsError = err.Error()
-		} else {
-			info.BoundEndpoints = make([]string, len(endpoints))
-			for i, ep := range endpoints {
-				info.BoundEndpoints[i] = ep.URL
-			}
-		}
-	}
-
-	return info, nil
-}
-
-// DiagnosticInfo contains debugging information about the dialer
-type DiagnosticInfo struct {
-	OperatorID          string   `json:"operator_id"`
-	KnownEndpoints      []string `json:"known_endpoints"`
-	BoundEndpoints      []string `json:"bound_endpoints"`
-	BoundEndpointsError string   `json:"bound_endpoints_error,omitempty"`
-}
-
-// isKnownEndpoint checks if the hostname matches a cached ngrok endpoint
-func (d *Dialer) isKnownEndpoint(hostname string) bool {
-	d.mu.RLock()
-	defer d.mu.RUnlock()
-	_, exists := d.endpoints[hostname]
-	return exists
-}
-
-// knownEndpointNames returns all cached endpoint hostnames for debugging
-func (d *Dialer) knownEndpointNames() []string {
-	d.mu.RLock()
-	defer d.mu.RUnlock()
-	names := make([]string, 0, len(d.endpoints))
-	for name := range d.endpoints {
-		names = append(names, name)
-	}
-	return names
-}
-
-// Close stops background goroutines and cleans up resources
-func (d *Dialer) Close() error {
-	d.closeOnce.Do(func() {
-		d.closed.Store(true)
-		close(d.closeCh)
-	})
-	d.wg.Wait()
-	return nil
 }

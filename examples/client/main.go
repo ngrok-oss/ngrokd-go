@@ -6,6 +6,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"os"
 	"time"
 
 	ngrokd "github.com/ngrok-oss/ngrokd-go"
@@ -21,12 +22,31 @@ func run(ctx context.Context) error {
 	ctx, cancel := context.WithTimeout(ctx, 60*time.Second)
 	defer cancel()
 
-	// Create ngrokd dialer 
-	dialer, err := ngrokd.NewDialer(ctx, ngrokd.Config{})
+	// Create ngrokd discovery dialer with API key (from env: NGROK_API_KEY)
+	dialer, err := ngrokd.DiscoveryDialer(ctx, ngrokd.Config{
+		APIKey: os.Getenv("NGROK_API_KEY"),
+	})
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to create dialer: %w", err)
 	}
-	defer dialer.Close()
+
+	log.Printf("Operator ID: %s", dialer.OperatorID())
+
+	// List available endpoints
+	endpoints, err := dialer.Endpoints(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to list endpoints: %w", err)
+	}
+
+	log.Printf("Found %d endpoints", len(endpoints))
+	for _, ep := range endpoints {
+		log.Printf("  - %s", ep.URL)
+	}
+
+	if len(endpoints) == 0 {
+		log.Println("No endpoints found")
+		return nil
+	}
 
 	// Create HTTP client using ngrokd dialer
 	httpClient := &http.Client{
@@ -34,9 +54,14 @@ func run(ctx context.Context) error {
 		Timeout:   30 * time.Second,
 	}
 
-	// Dial the private endpoint started by the server
-	log.Println("Connecting to http://hello-server.example...")
-	resp, err := httpClient.Get("http://hello-server.example")
+	// Use first discovered endpoint, or one from command line
+	target := endpoints[0].URL.String()
+	if len(os.Args) > 1 {
+		target = os.Args[1]
+	}
+
+	log.Printf("Connecting to %s...", target)
+	resp, err := httpClient.Get(target)
 	if err != nil {
 		return err
 	}

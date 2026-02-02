@@ -59,13 +59,13 @@ func parseAddress(address string) (hostname string, port int, err error) {
 	return address, 80, nil
 }
 
-// discoverEndpoints fetches bound endpoints from ngrok API
-func (d *Dialer) discoverEndpoints(ctx context.Context) ([]Endpoint, error) {
-	if d.operatorID == "" {
+// discoverEndpoints fetches bound endpoints from ngrok API.
+func discoverEndpoints(ctx context.Context, client *apiClient, operatorID string) ([]Endpoint, error) {
+	if operatorID == "" {
 		return nil, fmt.Errorf("operator ID not set")
 	}
 
-	apiEndpoints, err := d.apiClient.ListBoundEndpoints(ctx, d.operatorID)
+	apiEndpoints, err := client.ListBoundEndpoints(ctx, operatorID)
 	if err != nil {
 		return nil, err
 	}
